@@ -1,0 +1,70 @@
+version: '3'
+
+env:
+  UID:
+    sh: id -u
+  GID:
+    sh: id -g
+  DOCKER_COMPOSE_RUN: docker compose run --rm --remove-orphans
+  COMPOSE_BAKE: true
+
+dotenv:
+  - .env
+  - .env.example
+
+tasks:
+  default:
+    cmds:
+      - task --list
+
+  # Docker
+  up:
+    desc: Up ollama service and install model
+    cmds:
+      - docker compose up ollama -d {{.CLI_ARGS | default "--remove-orphans --wait"}}
+      - docker compose exec ollama ollama pull ${OLLAMA_MODEL}
+
+  down:
+    desc: Down services
+    summary: |
+      Use `task down -- -v --remove-orphans` to additionally remove the ollama volume
+    cmds:
+      - docker compose down {{.CLI_ARGS | default "--remove-orphans"}}
+
+  run:
+    desc: Run service
+    vars:
+      PROMPT: '{{.p | default "Describe the page"}}'
+      SOURCE: '{{.s}}'
+    requires:
+      vars:
+        - p
+        - s
+    cmds:
+      - $DOCKER_COMPOSE_RUN -u $(id -u):$(id -g) app python -m scrapegraph --prompt "{{.PROMPT}}" --source "{{.SOURCE}}"
+
+  # Development tools
+  ruff:
+    desc: Run ruff
+    cmds:
+      - $DOCKER_COMPOSE_RUN app ruff check .
+
+  ruff:fix:
+    desc: Run ruff fix
+    cmds:
+      - $DOCKER_COMPOSE_RUN app ruff check --fix .
+
+  black:
+    desc: Run black
+    cmds:
+      - $DOCKER_COMPOSE_RUN app black . --check --diff --color
+
+  black:fix:
+    desc: Run black fix
+    cmds:
+      - $DOCKER_COMPOSE_RUN app black .
+
+  mypy:
+    desc: Run mypy
+    cmds:
+      - $DOCKER_COMPOSE_RUN app mypy .
